@@ -15,5 +15,5 @@ byteorder = "1.2.1"
 serde = "1"
 serde_derive = "1"
 serde_json = "1"
-yew = { git = "https://github.com/DenisKolodin/yew" }
+yew = "0.4"
 rand = { version = "0.5", features = ["stdweb"] }

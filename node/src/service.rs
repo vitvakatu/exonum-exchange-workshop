@@ -1,25 +1,16 @@
-use std::collections::BTreeMap;
-use exonum::blockchain::{
-    Blockchain,
-    Service,
-    Transaction,
-    TransactionSet,
-    ApiContext,
-    ExecutionResult,
-};
-use exonum::node::{TransactionSend, ApiSender};
-use exonum::messages::{RawTransaction, Message};
-use exonum::storage::{Fork, MapIndex, Snapshot};
+use exonum::api;
+use exonum::api::ServiceApiBuilder;
+use exonum::api::ServiceApiState;
+use exonum::blockchain::{ExecutionResult, Service, Transaction, TransactionSet};
 use exonum::crypto::{Hash, PublicKey};
 use exonum::encoding;
-use exonum::encoding::serialize::FromHex;
-use exonum::api::{Api, ApiError};
-use iron::prelude::*;
-use iron::Handler;
-use router::Router;
-use bodyparser;
-use serde_json;
+use exonum::helpers::fabric::Context;
+use exonum::helpers::fabric::ServiceFactory;
+use exonum::messages::{Message, RawTransaction};
+use exonum::node::TransactionSend;
+use exonum::storage::{Fork, MapIndex, Snapshot};
 use protocol::*;
+use std::collections::BTreeMap;
 
 // // // // // // // // // // CONSTANTS // // // // // // // // // //
 
@@ -57,14 +48,24 @@ impl Account {
     fn add_order_id(&self, id: u32) -> Self {
         let mut orders = self.orders();
         orders.push(id);
-        Self::new(self.owner(), self.usd_balance(), self.token_balance(), orders)
+        Self::new(
+            self.owner(),
+            self.usd_balance(),
+            self.token_balance(),
+            orders,
+        )
     }
 
     fn remove_order_by_id(&self, id: u32) -> Option<Self> {
         let mut orders = self.orders();
         if let Some(index) = orders.iter().position(|x| *x == id) {
             orders.remove(index);
-            let res = Self::new(self.owner(), self.usd_balance(), self.token_balance(), orders);
+            let res = Self::new(
+                self.owner(),
+                self.usd_balance(),
+                self.token_balance(),
+                orders,
+            );
             Some(res)
         } else {
             None
@@ -191,78 +192,65 @@ impl Transaction for TxCancel {
 // // // // // // // // // // REST API // // // // // // // // // //
 
 #[derive(Clone)]
-struct ExchangeServiceApi {
-    channel: ApiSender,
-    blockchain: Blockchain,
+struct ExchangeServiceApi;
+
+#[derive(Debug, Serialize, Deserialize)]
+struct AccountQuery {
+    pub key: PublicKey,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct OrdersResponse(pub BTreeMap<u32, Order>);
+
+/// Response to an incoming transaction returned by the REST API.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TransactionResponse {
+    /// Hash of the transaction.
+    pub tx_hash: Hash,
 }
 
 impl ExchangeServiceApi {
-    fn post_transaction(&self, req: &mut Request) -> IronResult<Response> {
-        info!("Transaction...");
-        match req.get::<bodyparser::Struct<Transactions>>() {
-            Ok(Some(transaction)) => {
-                info!("Ok...");
-                let transaction: Box<Transaction> = transaction.into();
-                let tx_hash = transaction.hash();
-                self.channel.send(transaction).map_err(ApiError::from)?;
-                self.ok_response(&json!({
-                    "tx_hash": tx_hash
-                }))
-            }
-            Ok(None) => Err(ApiError::BadRequest("Empty request body".into()))?,
-            Err(e) => Err(ApiError::BadRequest(e.to_string()))?,
-        }
+    /// Endpoint for handling cryptocurrency transactions.
+    pub fn post_transaction(
+        state: &ServiceApiState,
+        query: Transactions,
+    ) -> api::Result<TransactionResponse> {
+        let transaction: Box<dyn Transaction> = query.into();
+        let tx_hash = transaction.hash();
+        state.sender().send(transaction)?;
+        Ok(TransactionResponse { tx_hash })
     }
 
-    fn get_account(&self, req: &mut Request) -> IronResult<Response> {
-        let path = req.url.path();
-        let wallet_key = path.last().unwrap();
-        let public_key = PublicKey::from_hex(wallet_key)
-            .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    pub fn get_accout(state: &ServiceApiState, query: AccountQuery) -> api::Result<Account> {
+        let public_key = query.key;
 
         let account = {
-            let snapshot = self.blockchain.snapshot();
+            let snapshot = state.snapshot();
             let schema = ExchangeSchema::new(snapshot);
             schema.account(&public_key)
         };
 
         if let Some(account) = account {
-            self.ok_response(&serde_json::to_value(account).unwrap())
+            Ok(account)
         } else {
-            self.not_found_response(&serde_json::to_value("account not found").unwrap())
+            Err(api::Error::NotFound("Account not found".to_owned()))
         }
     }
 
-    fn get_orders(&self, req: &mut Request) -> IronResult<Response> {
-        let snapshot = self.blockchain.snapshot();
+    pub fn get_orders(state: &ServiceApiState, _query: ()) -> api::Result<OrdersResponse> {
+        let snapshot = state.snapshot();
         let schema = ExchangeSchema::new(snapshot);
         let orders = schema.orders();
         let orders = orders.iter().collect::<BTreeMap<u32, Order>>();
-
-        self.ok_response(&serde_json::to_value(orders).unwrap())
+        Ok(OrdersResponse(orders))
     }
-}
 
-impl Api for ExchangeServiceApi {
-    fn wire(&self, router: &mut Router) {
-        let self_ = self.clone();
-        let post_create_account =
-            move |req: &mut Request| self_.post_transaction(req);
-        let self_ = self.clone();
-        let post_create_order =
-            move |req: &mut Request| self_.post_transaction(req);
-        let self_ = self.clone();
-        let post_cancel_order =
-            move |req: &mut Request| self_.post_transaction(req);
-        let self_ = self.clone();
-        let get_account = move |req: &mut Request| self_.get_account(req);
-        let self_ = self.clone();
-        let get_orders = move |req: &mut Request| self_.get_orders(req);
-        router.post("/v1/account", post_create_account, "post_create_account");
-        router.post("/v1/order", post_create_order, "post_create_order");
-        router.post("/v1/cancel", post_cancel_order, "post_cancel_order");
-        router.get("/v1/account/:pub_key", get_account, "get_account");
-        router.get("/v1/orders", get_orders, "get_orders");
+    pub fn wire(builder: &mut ServiceApiBuilder) {
+        builder
+            .public_scope()
+            .endpoint("v1/account", Self::get_accout)
+            .endpoint("v1/orders", Self::get_orders)
+            .endpoint_mut("v1/transaction", Self::post_transaction);
     }
 }
 
@@ -270,12 +258,16 @@ impl Api for ExchangeServiceApi {
 pub struct ExchangeService;
 
 impl Service for ExchangeService {
+    fn service_id(&self) -> u16 {
+        SERVICE_ID
+    }
+
     fn service_name(&self) -> &'static str {
         "cryptoexchange"
     }
 
-    fn service_id(&self) -> u16 {
-        SERVICE_ID
+    fn state_hash(&self, _: &Snapshot) -> Vec<Hash> {
+        vec![]
     }
 
     fn tx_from_raw(&self, raw: RawTransaction) -> Result<Box<Transaction>, encoding::Error> {
@@ -283,17 +275,17 @@ impl Service for ExchangeService {
         Ok(tx.into())
     }
 
-    fn state_hash(&self, _: &Snapshot) -> Vec<Hash> {
-        vec![]
+    fn wire_api(&self, builder: &mut ServiceApiBuilder) {
+        ExchangeServiceApi::wire(builder);
+    }
+}
+
+impl ServiceFactory for ExchangeService {
+    fn service_name(&self) -> &str {
+        "cryptoexchange"
     }
 
-    fn public_api_handler(&self, ctx: &ApiContext) -> Option<Box<Handler>> {
-        let mut router = Router::new();
-        let api = ExchangeServiceApi {
-            channel: ctx.node_channel().clone(),
-            blockchain: ctx.blockchain().clone(),
-        };
-        api.wire(&mut router);
-        Some(Box::new(router))
+    fn make_service(&mut self, _run_context: &Context) -> Box<Service> {
+        Box::new(ExchangeService)
     }
 }

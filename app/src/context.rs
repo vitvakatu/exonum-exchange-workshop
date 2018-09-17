@@ -71,7 +71,7 @@ impl Context {
 
     pub fn fetch_account(&mut self, callback: Callback<Result<Account, String>>) -> FetchTask {
         let url = format!(
-            "http://localhost:8080/api/services/cryptoexchange/v1/account/{}",
+            "http://localhost:8080/api/services/cryptoexchange/v1/account?key={}",
             self.exonum.get_owner());
         warn!("URL: {}", url);
         self.fetch_resource(url, callback)

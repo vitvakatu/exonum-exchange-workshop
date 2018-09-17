@@ -46,7 +46,6 @@ function sendTransaction(decl, url, data) {
         signature: signature,
     };
     var body = JSON.stringify(transaction);
-    console.log("URL: ", url, data, body);
     fetch(url, {
         method: 'POST',
         headers: {
@@ -59,7 +58,7 @@ function sendTransaction(decl, url, data) {
 }
 
 var createAccount = function() {
-    var url = "http://localhost:8080/api/services/cryptoexchange/v1/account";
+    var url = "http://localhost:8080/api/services/cryptoexchange/v1/transaction";
     var data = {
         owner: keyPair.publicKey,
     };
@@ -67,7 +66,7 @@ var createAccount = function() {
 };
 
 var putOrder = function(price, amount, id) {
-    var url = "http://localhost:8080/api/services/cryptoexchange/v1/order";
+    var url = "http://localhost:8080/api/services/cryptoexchange/v1/transaction";
     var data = {
         owner: keyPair.publicKey,
         price: price,
@@ -78,7 +77,7 @@ var putOrder = function(price, amount, id) {
 };
 
 var cancelOrder = function(id) {
-    var url = "http://localhost:8080/api/services/cryptoexchange/v1/cancel";
+    var url = "http://localhost:8080/api/services/cryptoexchange/v1/transaction";
     var data = {
         owner: keyPair.publicKey,
         id: id,
