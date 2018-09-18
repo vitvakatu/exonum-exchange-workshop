@@ -1,0 +1,48 @@
+consensus_public_key = "e3b3ef671fb70d2860f7dcbb74732e03b7f9e25a2964803813c9a178f2a8f650"
+consensus_secret_key = "ba5e2a398298f1c60f8a8b690d8f6c0f875f1408fb8a079d71bdcf1d30385993e3b3ef671fb70d2860f7dcbb74732e03b7f9e25a2964803813c9a178f2a8f650"
+external_address = "127.0.0.1:3000"
+listen_address = "0.0.0.0:3000"
+service_public_key = "b413d853f128d68fc7020104aad2c7104a6637f6ca31c88ec890a40870ba8a38"
+service_secret_key = "5b537a28ef2ab844f190a6705eefaa10f910ec3e9714a4b832ab2e5a5f4ca114b413d853f128d68fc7020104aad2c7104a6637f6ca31c88ec890a40870ba8a38"
+
+[api]
+enable_blockchain_explorer = true
+public_allow_origin = "*"
+state_update_timeout = 10000
+[[connect_list.peers]]
+address = "127.0.0.1:3000"
+public_key = "e3b3ef671fb70d2860f7dcbb74732e03b7f9e25a2964803813c9a178f2a8f650"
+
+[database]
+create_if_missing = true
+[[genesis.validator_keys]]
+consensus_key = "e3b3ef671fb70d2860f7dcbb74732e03b7f9e25a2964803813c9a178f2a8f650"
+service_key = "b413d853f128d68fc7020104aad2c7104a6637f6ca31c88ec890a40870ba8a38"
+
+[genesis.consensus]
+max_message_len = 1048576
+max_propose_timeout = 200
+min_propose_timeout = 10
+peers_timeout = 10000
+propose_timeout_threshold = 500
+round_timeout = 3000
+status_timeout = 5000
+txs_block_limit = 1000
+
+[mempool]
+tx_pool_capacity = 100000
+
+[mempool.events_pool_capacity]
+api_requests_capacity = 1024
+internal_events_capacity = 128
+network_events_capacity = 512
+network_requests_capacity = 512
+
+[network]
+max_incoming_connections = 128
+max_outgoing_connections = 128
+tcp_connect_max_retries = 10
+tcp_connect_retry_timeout = 15000
+tcp_nodelay = true
+
+[services_configs]
