@@ -28,6 +28,15 @@ encoding_struct! {
     }
 }
 
+encoding_struct! {
+    struct Order {
+        owner: &PublicKey,
+        price: u32,
+        amount: i32,
+        id: u32,
+    }
+}
+
 impl Account {
     fn buy_tokens(&self, price: u32, amount: i32, id: u32) -> Self {
         let usd_balance = self.usd_balance() - (price as i32 * amount) as u32;
@@ -43,17 +52,6 @@ impl Account {
         let mut orders = self.orders();
         orders.push(id);
         Self::new(self.owner(), usd_balance, token_balance, orders)
-    }
-
-    fn add_order_id(&self, id: u32) -> Self {
-        let mut orders = self.orders();
-        orders.push(id);
-        Self::new(
-            self.owner(),
-            self.usd_balance(),
-            self.token_balance(),
-            orders,
-        )
     }
 
     fn remove_order_by_id(&self, id: u32) -> Option<Self> {
@@ -73,14 +71,6 @@ impl Account {
     }
 }
 
-encoding_struct! {
-    struct Order {
-        owner: &PublicKey,
-        price: u32,
-        amount: i32,
-        id: u32,
-    }
-}
 
 // // // // // // // // // // DATA LAYOUT // // // // // // // // // //
 
