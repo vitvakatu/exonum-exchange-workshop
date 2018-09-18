@@ -19,24 +19,6 @@ const TOKEN_BALANCE: u32 = 1_000;
 
 // // // // // // // // // // PERSISTENT DATA // // // // // // // // // //
 
-encoding_struct! {
-    struct Account {
-        owner: &PublicKey,
-        usd_balance: u32, // .00
-        token_balance: u32, // .000000
-        orders: Vec<u32>,
-    }
-}
-
-encoding_struct! {
-    struct Order {
-        owner: &PublicKey,
-        price: u32,
-        amount: i32,
-        id: u32,
-    }
-}
-
 impl Account {
     fn buy_tokens(&self, price: u32, amount: i32, id: u32) -> Self {
         let usd_balance = self.usd_balance() - (price as i32 * amount) as u32;
@@ -78,52 +60,7 @@ pub struct ExchangeSchema<T> {
     view: T,
 }
 
-impl<T: AsRef<Snapshot>> ExchangeSchema<T> {
-    pub fn new(view: T) -> Self {
-        ExchangeSchema { view }
-    }
-
-    pub fn accounts(&self) -> MapIndex<&Snapshot, PublicKey, Account> {
-        MapIndex::new("cryptoexchange.accounts", self.view.as_ref())
-    }
-
-    pub fn account(&self, owner: &PublicKey) -> Option<Account> {
-        self.accounts().get(owner)
-    }
-
-    pub fn orders(&self) -> MapIndex<&Snapshot, u32, Order> {
-        MapIndex::new("cryptoexchange.orders", self.view.as_ref())
-    }
-}
-
-impl<'a> ExchangeSchema<&'a mut Fork> {
-    pub fn accounts_mut(&mut self) -> MapIndex<&mut Fork, PublicKey, Account> {
-        MapIndex::new("cryptoexchange.accounts", &mut self.view)
-    }
-
-    pub fn orders_mut(&mut self) -> MapIndex<&mut Fork, u32, Order> {
-        MapIndex::new("cryptoexchange.orders", &mut self.view)
-    }
-}
-
 // // // // // // // // // // CONTRACTS // // // // // // // // // //
-
-impl Transaction for TxCreate {
-    fn verify(&self) -> bool {
-        self.verify_signature(self.owner())
-    }
-
-    fn execute(&self, view: &mut Fork) -> ExecutionResult {
-        trace!("TxOrder");
-        let mut schema = ExchangeSchema::new(view);
-        if schema.account(self.owner()).is_none() {
-            let account = Account::new(self.owner(), USD_BALANCE, TOKEN_BALANCE, Vec::new());
-            println!("Create the account: {:?}", account);
-            schema.accounts_mut().put(self.owner(), account);
-        }
-        Ok(())
-    }
-}
 
 impl Transaction for TxOrder {
     fn verify(&self) -> bool {
@@ -153,27 +90,6 @@ impl Transaction for TxOrder {
     }
 }
 
-impl Transaction for TxCancel {
-    fn verify(&self) -> bool {
-        self.verify_signature(self.owner())
-    }
-
-    fn execute(&self, view: &mut Fork) -> ExecutionResult {
-        trace!("TxCancel");
-        let mut schema = ExchangeSchema::new(view);
-        let account = schema.account(self.owner());
-        if let Some(account) = account {
-            let exists = schema.orders_mut().contains(&self.id());
-            if exists {
-                if let Some(account) = account.remove_order_by_id(self.id()) {
-                    schema.orders_mut().remove(&self.id());
-                    schema.accounts_mut().put(self.owner(), account);
-                }
-            }
-        }
-        Ok(())
-    }
-}
 
 // // // // // // // // // // REST API // // // // // // // // // //
 
@@ -242,36 +158,3 @@ impl ExchangeServiceApi {
 
 // // // // // // // // // // SERVICE DECLARATION // // // // // // // // // //
 pub struct ExchangeService;
-
-impl Service for ExchangeService {
-    fn service_id(&self) -> u16 {
-        SERVICE_ID
-    }
-
-    fn service_name(&self) -> &'static str {
-        "cryptoexchange"
-    }
-
-    fn state_hash(&self, _: &Snapshot) -> Vec<Hash> {
-        vec![]
-    }
-
-    fn tx_from_raw(&self, raw: RawTransaction) -> Result<Box<Transaction>, encoding::Error> {
-        let tx = Transactions::tx_from_raw(raw)?;
-        Ok(tx.into())
-    }
-
-    fn wire_api(&self, builder: &mut ServiceApiBuilder) {
-        ExchangeServiceApi::wire(builder);
-    }
-}
-
-impl ServiceFactory for ExchangeService {
-    fn service_name(&self) -> &str {
-        "cryptoexchange"
-    }
-
-    fn make_service(&mut self, _run_context: &Context) -> Box<Service> {
-        Box::new(ExchangeService)
-    }
-}
