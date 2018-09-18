@@ -30,16 +30,18 @@ pub struct Model {
     orders_task: Option<FetchTask>,
     account: Option<Account>,
     order_book: Option<OrderBook>,
+    amount: i32,
+    price: i32,
 }
 
 pub enum Msg {
     Account(Result<Account, String>),
     OrderBook(Result<OrderBook, String>),
-    Increment,
-    Decrement,
     Bulk(Vec<Msg>),
     NeedUpdate(()),
-    PutOrder(i32, i32),
+    Amount(i32),
+    Price(i32),
+    PutOrder(bool),
     Cancel(u32),
 }
 
@@ -57,11 +59,19 @@ impl Component<Context> for Model {
             orders_task: None,
             account: None,
             order_book: None,
+            amount: 0,
+            price: 0,
         }
     }
 
     fn update(&mut self, msg: Self::Message, env: &mut Env<Context, Self>) -> ShouldRender {
         match msg {
+            Msg::Amount(amount) => {
+                self.amount = amount;
+            },
+            Msg::Price(price) => {
+                self.price = price;
+            }
             Msg::Account(account) => {
                 info!("Account: {:?}", account);
                 if let Ok(account) = account {
@@ -82,8 +92,12 @@ impl Component<Context> for Model {
                 let task = env.fetch_orders(callback);
                 self.orders_task = Some(task);
             },
-            Msg::PutOrder(price, amount) => {
-                env.exonum().put_order(price, amount);
+            Msg::PutOrder(buying) => {
+                if buying {
+                    env.exonum().put_order(self.price, self.amount);
+                } else {
+                    env.exonum().put_order(self.price, -self.amount);
+                }
             },
             Msg::Cancel(id) => {
                 env.exonum().cancel_order(id);
@@ -142,21 +156,21 @@ impl Model {
                             <div class="field",>
                                 <label class="label",>{ "Price" }</label>
                                 <div class="control",>
-                                <input class="input", type="text", placeholder="Price", />
+                                <input class="input", type="text", oninput = |e| Msg::Price(e.value.parse().unwrap()), placeholder="Price", />
                                 </div>
                             </div>
                             <div class="field",>
                                 <label class="label",>{ "Amount" }</label>
                                 <div class="control",>
-                                <input class="input", type="text", placeholder="Amount", />
+                                <input class="input", type="text", oninput = |e| Msg::Amount(e.value.parse().unwrap()), placeholder="Amount", />
                                 </div>
                             </div>
                             <div class=("field", "has-addons"),>
                                 <p class="control",>
-                                    <button class="button", onclick=|_| Msg::PutOrder,>{ "Buy" }</button>
+                                    <button class="button", onclick=|_| Msg::PutOrder(true),>{ "Buy" }</button>
                                 </p>
                                 <p class="control",>
-                                    <button class="button", onclick=|_| Msg::PutOrder,>{ "Sell" }</button>
+                                    <button class="button", onclick=|_| Msg::PutOrder(false),>{ "Sell" }</button>
                                 </p>
                             </div>
                         </div>

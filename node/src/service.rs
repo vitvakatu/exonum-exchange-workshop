@@ -149,12 +149,11 @@ impl Transaction for TxOrder {
                 let order = Order::new(self.owner(), self.price(), self.amount(), self.id());
                 println!("Put the order <{}>: {:?}", self.id(), order);
                 let account = {
-                    account.buy_tokens(order.price(), order.amount(), order.id())
-                    /*if order.amount() > 0 {
+                    if order.amount() > 0 {
                         account.buy_tokens(order.price(), order.amount(), order.id())
                     } else {
-                        account.buy_tokens(order.price(), -order.amount(), order.id())
-                    }*/
+                        account.sell_tokens(order.price(), -order.amount(), order.id())
+                    }
                 };
                 schema.accounts_mut().put(self.owner(), account);
                 schema.orders_mut().put(&self.id(), order);
