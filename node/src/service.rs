@@ -141,7 +141,6 @@ impl Transaction for TxOrder {
     }
 
     fn execute(&self, view: &mut Fork) -> ExecutionResult {
-        trace!("TxOrder");
         let mut schema = ExchangeSchema::new(view);
         let account = schema.account(self.owner());
         if let Some(account) = account {
@@ -149,18 +148,16 @@ impl Transaction for TxOrder {
             if not_exists {
                 let order = Order::new(self.owner(), self.price(), self.amount(), self.id());
                 println!("Put the order <{}>: {:?}", self.id(), order);
-                let account = account.add_order_id(self.id());
-                schema.orders_mut().put(&self.id(), order);
-                schema.accounts_mut().put(self.owner(), account);
-                /*
                 let account = {
-                    if order.amount() > 0 {
+                    account.buy_tokens(order.price(), order.amount(), order.id())
+                    /*if order.amount() > 0 {
                         account.buy_tokens(order.price(), order.amount(), order.id())
                     } else {
-                        account.sell_tokens(order.price(), -order.amount(), order.id())
-                    }
+                        account.buy_tokens(order.price(), -order.amount(), order.id())
+                    }*/
                 };
-                */
+                schema.accounts_mut().put(self.owner(), account);
+                schema.orders_mut().put(&self.id(), order);
             }
         }
         Ok(())

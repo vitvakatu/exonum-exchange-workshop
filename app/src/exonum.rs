@@ -19,11 +19,13 @@ impl ExonumService {
         };
     }
 
-    pub fn put_order(&mut self) {
+    pub fn put_order(&mut self, price: i32, amount: i32) {
         let id: u32 = random();
         js! {
             let id = @{id};
-            putOrder(1000, 10, id);
+            let price = @{price};
+            let amount = @{amount};
+            putOrder(price, amount, id);
         };
     }
 

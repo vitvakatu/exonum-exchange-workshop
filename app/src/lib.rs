@@ -39,7 +39,7 @@ pub enum Msg {
     Decrement,
     Bulk(Vec<Msg>),
     NeedUpdate(()),
-    PutOrder,
+    PutOrder(i32, i32),
     Cancel(u32),
 }
 
@@ -82,8 +82,8 @@ impl Component<Context> for Model {
                 let task = env.fetch_orders(callback);
                 self.orders_task = Some(task);
             },
-            Msg::PutOrder => {
-                env.exonum().put_order();
+            Msg::PutOrder(price, amount) => {
+                env.exonum().put_order(price, amount);
             },
             Msg::Cancel(id) => {
                 env.exonum().cancel_order(id);
